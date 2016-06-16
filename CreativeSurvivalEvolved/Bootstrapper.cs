@@ -55,12 +55,15 @@ namespace CreativeSurvivalEvolved
 					var iDic = ItemEntry.mEntriesById[itemEntry.ItemID];
 					var nDic = ItemEntry.mEntriesByKey[itemEntry.Key];
 
+					itemEntry.MaxStack = 100;
 					itemEntry.ResearchRequirements.Clear();
 					itemEntry.ScanRequirements.Clear();
 
+					iDic.MaxStack = 100;
 					iDic.ResearchRequirements.Clear();
 					iDic.ScanRequirements.Clear();
 
+					nDic.MaxStack = 100;
 					nDic.ResearchRequirements.Clear();
 					nDic.ScanRequirements.Clear();
 
