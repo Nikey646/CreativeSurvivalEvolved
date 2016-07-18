@@ -6,30 +6,25 @@ using System.Reflection;
 using System.Collections.Generic;
 using UnityEngine;
 
-#if DEBUG
-using UnityEngine;
-#endif
-
 namespace CreativeSurvivalEvolved
 {
 	public class Bootstrapper : FortressCraftMod
 	{
 		private Ini _settings;
-		private Boolean _registered;
 
 		private List<string> _recipes;
 		private List<CraftData> _newRecipes;
 
+		private Boolean _registered;
 		private Boolean _recipesChanged;
 		private Boolean _itemsChanged;
 		private Boolean _terrainChanged;
+		private Boolean _researchChanged;
 
 		private void Update()
 		{
 			if (!this._registered)
-			{
 				return;
-			}
 
 			if (!this._recipesChanged)
 				this.ModifyRecipes();
@@ -42,6 +37,12 @@ namespace CreativeSurvivalEvolved
 
 			if (this._recipes != null && this._terrainChanged && this._itemsChanged && this._recipesChanged)
 				this.ApplyRecipes();
+
+			if (!this._researchChanged && ResearchDataEntry.mEntries != null)
+				this.ModifyResearch();
+
+			if (SurvivalPlayerScript.meTutorialState != SurvivalPlayerScript.eTutorialState.NowFuckOff)
+				this.ProgressTutorial();
 		}
 
 		private void ModifyRecipes()
@@ -55,9 +56,6 @@ namespace CreativeSurvivalEvolved
 
 				foreach (var recipe in recipeSet.Value)
 				{
-					if (recipe.Key == "Snow" || recipe.Key == "arther core")
-						continue;
-
 					recipe.Costs.Clear();
 					recipe.CraftTime = 0;
 					recipe.ResearchCost = 0;
@@ -163,6 +161,53 @@ namespace CreativeSurvivalEvolved
 			this._recipes.Clear();
 			this._newRecipes = null;
 			this._recipes = null;
+		}
+
+		private void ModifyResearch()
+		{
+			var researches = 0;
+			foreach (var entry in ResearchDataEntry.mEntries)
+			{
+				var keyEntry = ResearchDataEntry.mEntriesByKey?[entry.Key];
+
+				if (keyEntry != null)
+				{
+					keyEntry.ResearchCost = 0;
+
+					keyEntry.ResearchRequirements?.Clear();
+					keyEntry.ProjectItemRequirements?.Clear();
+					keyEntry.ScanRequirements?.Clear();
+				}
+
+				entry.ResearchCost = 0;
+
+				entry.ResearchRequirements?.Clear();
+				entry.ProjectItemRequirements?.Clear();
+				entry.ScanRequirements?.Clear();
+
+				researches++;
+			}
+
+			this._researchChanged = true;
+
+#if DEBUG
+			Debug.LogError($"{researches} Research Projects now are free to research!");
+#endif
+		}
+
+		private void ProgressTutorial()
+		{
+			var state = (Int32)SurvivalPlayerScript.meTutorialState;
+			if (state >= 2)
+				SurvivalPlayerScript.meTutorialState++;
+
+			switch ((SurvivalPlayerScript.eTutorialState) state)
+			{
+				case SurvivalPlayerScript.eTutorialState.CraftSomething:
+					WorldScript.mLocalPlayer.mInventory.AddItem(ItemManager.SpawnItem(2000)); // Give the player an Arther Power Core
+					break;
+			}
+
 		}
 
 		private CraftData[] CreateRecipe(ItemEntry item)
