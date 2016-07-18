@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Collections.Generic;
+using UnityEngine;
+
 #if DEBUG
 using UnityEngine;
 #endif
@@ -164,6 +166,11 @@ namespace CreativeSurvivalEvolved
 
 		private CraftData[] CreateRecipe(ItemEntry item)
 		{
+			if (string.IsNullOrEmpty(item.Sprite))
+			{
+				Debug.LogError($"Unable to add free recipe for: {item.Name}");
+				return new CraftData[0];
+			}
 			return this.CreateRecipe(item.Key, item.Key, item.Name,
 				"Added to Crafting Menu by Creative Survival Evolved.");
 		}
@@ -176,6 +183,11 @@ namespace CreativeSurvivalEvolved
 
 		private CraftData[] CreateRecipe(TerrainDataEntry terrain)
 		{
+			if (string.IsNullOrEmpty(terrain.IconName))
+			{
+				Debug.LogError($"Unable to add free recipe for: {terrain.Name}");
+				return new CraftData[0];
+			}
 			return this.CreateRecipe(terrain.Key, terrain.Key, terrain.Name,
 				"Added to Crafting Menu by Creative Survival Evolved.");
 		}
