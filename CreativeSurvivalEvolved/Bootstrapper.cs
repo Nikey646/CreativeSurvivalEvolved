@@ -64,6 +64,7 @@ namespace CreativeSurvivalEvolved
 					recipe.ResearchRequirements.Clear();
 					recipe.ResearchRequirementEntries.Clear();
 					recipe.ScanRequirements.Clear();
+					recipe.RequiredModule = eManufacturingPlantModule.None;
 					recipes++;
 				}
 			}
