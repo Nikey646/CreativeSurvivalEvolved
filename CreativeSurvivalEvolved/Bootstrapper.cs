@@ -43,28 +43,53 @@ namespace CreativeSurvivalEvolved
 
 			if (SurvivalPlayerScript.meTutorialState != SurvivalPlayerScript.eTutorialState.NowFuckOff)
 				this.ProgressTutorial();
+
+			if (SurvivalPowerPanel.instance != null)
+				this.ResetStats();
 		}
 
 		private void ModifyRecipes()
 		{
 			var recipes = 0;
 
-			foreach (var recipeSet in CraftData.mRecipesForSet)
+			try
 			{
-				if (!this._settings.GetBoolean(recipeSet.Key, true))
-					continue;
-
-				foreach (var recipe in recipeSet.Value)
+				this._settings.SetSection("Recipes");
+				foreach (var recipeSet in CraftData.mRecipesForSet)
 				{
-					recipe.Costs.Clear();
-					recipe.CraftTime = 0;
-					recipe.ResearchCost = 0;
-					recipe.ResearchRequirements.Clear();
-					recipe.ResearchRequirementEntries.Clear();
-					recipe.ScanRequirements.Clear();
-					recipe.RequiredModule = eManufacturingPlantModule.None;
-					recipes++;
+					if (!this._settings.GetBoolean(recipeSet.Key, true))
+						continue;
+
+					foreach (var recipe in recipeSet.Value)
+					{
+						if (recipe == null)
+							continue;
+
+						// TODO: Apply multiplier to all recipes
+
+						var stackItem = false;
+						var craftedItem = ItemManager.SpawnItem(recipe);
+						if (craftedItem.mType == ItemType.ItemCubeStack || craftedItem.mType == ItemType.ItemStack)
+							stackItem = true;
+
+						recipe.Costs.Clear();
+						recipe.CraftTime = 0;
+						recipe.ResearchCost = 0;
+						recipe.ResearchRequirements.Clear();
+						recipe.ResearchRequirementEntries.Clear();
+						recipe.ScanRequirements.Clear();
+						recipe.RequiredModule = eManufacturingPlantModule.None;
+
+						if (stackItem)
+							recipe.CraftedAmount *= this._settings.GetInteger("CraftedAmountMulitplier", 1);
+
+						recipes++;
+					}
 				}
+			}
+			catch (NullReferenceException crap)
+			{
+				Debug.LogError(crap);
 			}
 
 			this._recipes.AddRange(CraftData.mRecipesForSet.First().Value.Select(recipe => recipe.CraftedKey));
@@ -93,16 +118,22 @@ namespace CreativeSurvivalEvolved
 				var nDic = ItemEntry.mEntriesByKey[itemEntry.Key];
 
 				itemEntry.MaxStack = 100;
-				itemEntry.ResearchRequirements.Clear();
-				itemEntry.ScanRequirements.Clear();
+				itemEntry.ResearchRequirements?.Clear();
+				itemEntry.ScanRequirements?.Clear();
 
-				iDic.MaxStack = 100;
-				iDic.ResearchRequirements.Clear();
-				iDic.ScanRequirements.Clear();
+				if (iDic != null)
+				{
+					iDic.MaxStack = 100;
+					iDic.ResearchRequirements?.Clear();
+					iDic.ScanRequirements?.Clear();
+				}
 
-				nDic.MaxStack = 100;
-				nDic.ResearchRequirements.Clear();
-				nDic.ScanRequirements.Clear();
+				if (nDic != null)
+				{
+					nDic.MaxStack = 100;
+					nDic.ResearchRequirements?.Clear();
+					nDic.ScanRequirements?.Clear();
+				}
 
 				if (this._recipes != null)
 				{
@@ -197,17 +228,46 @@ namespace CreativeSurvivalEvolved
 
 		private void ProgressTutorial()
 		{
-			var state = (Int32)SurvivalPlayerScript.meTutorialState;
-			if (state >= 2)
-				SurvivalPlayerScript.meTutorialState++;
+			if (WorldScript.instance?.mWorldData != null && !WorldScript.instance.mWorldData.mbIntroCompleted)
+				return;
 
-			switch ((SurvivalPlayerScript.eTutorialState) state)
-			{
-				case SurvivalPlayerScript.eTutorialState.CraftSomething:
-					WorldScript.mLocalPlayer.mInventory.AddItem(ItemManager.SpawnItem(2000)); // Give the player an Arther Power Core
-					break;
-			}
+			if (SurvivalPlayerScript.meTutorialState + 1 == SurvivalPlayerScript.eTutorialState.CraftSomething &&
+			    WorldScript.mLocalPlayer?.mInventory == null)
+				return;
 
+			SurvivalPlayerScript.TutorialSectionComplete();
+			UIManager.mrHandbookDisplayDelay = 0;
+
+			// TODO: Re-Add Arther Core when progressing Tutorial
+
+//			switch (SurvivalPlayerScript.meTutorialState)
+//			{
+//				case SurvivalPlayerScript.eTutorialState.CraftSomething:
+//					WorldScript.mLocalPlayer.mInventory.AddItem(ItemManager.SpawnItem(2000)); // Give the player an Arther Power Core
+//					break;
+//				case SurvivalPlayerScript.eTutorialState.ScanSomething:
+//					SurvivalPlayerScript.CompleteTutorial();
+//					break;
+//			}
+
+		}
+
+		private void ResetStats()
+		{
+//			SurvivalPowerPanel.mrTimeSinceDamage = 0;
+
+			this._settings.SetSection("Stats");
+//			if (this._settings.GetBoolean("State", true))
+//				WorldScript.mLocalPlayer.meState = PlayState.Normal;
+
+			if (this._settings.GetBoolean("Health", true))
+				SurvivalPowerPanel.CurrentHealth = SurvivalPowerPanel.MaxHealth;
+
+			if (this._settings.GetBoolean("Power", true))
+				SurvivalPowerPanel.mrSuitPower = SurvivalPowerPanel.mrMaxSuitPower;
+
+			if (this._settings.GetBoolean("Temperature", true))
+				SurvivalHazardPanel.mrInternalTemperature = 20;
 		}
 
 		private CraftData[] CreateRecipe(ItemEntry item)
@@ -217,14 +277,23 @@ namespace CreativeSurvivalEvolved
 				Debug.LogError($"Unable to add free recipe for: {item.Name}");
 				return new CraftData[0];
 			}
+			var stackItem = item.Type == ItemType.ItemCubeStack || item.Type == ItemType.ItemStack;
+
 			return this.CreateRecipe(item.Key, item.Key, item.Name,
-				"Added to Crafting Menu by Creative Survival Evolved.");
+				"Added to Crafting Menu by Creative Survival Evolved.",
+				stackItem);
 		}
 
 		private CraftData[] CreateRecipe(CraftData recipe)
 		{
+			var stackItem = false;
+			var craftedItem = ItemManager.SpawnItem(recipe); // Luckily this will only be called during bootup
+			if (craftedItem.mType == ItemType.ItemCubeStack || craftedItem.mType == ItemType.ItemStack)
+				stackItem = true;
+
 			return this.CreateRecipe(recipe.Key, recipe.CraftedKey, recipe.CraftedName,
-				recipe.Description + "\nAdded to Crafting Menu by Creative Survival Evolved.");
+				recipe.Description + "\nAdded to Crafting Menu by Creative Survival Evolved.", 
+				stackItem);
 		}
 
 		private CraftData[] CreateRecipe(TerrainDataEntry terrain)
@@ -235,11 +304,13 @@ namespace CreativeSurvivalEvolved
 				return new CraftData[0];
 			}
 			return this.CreateRecipe(terrain.Key, terrain.Key, terrain.Name,
-				"Added to Crafting Menu by Creative Survival Evolved.");
+				"Added to Crafting Menu by Creative Survival Evolved.", true);
 		}
 
-		private CraftData[] CreateRecipe(string key, string craftedKey, string name, string description)
+		private CraftData[] CreateRecipe(string key, string craftedKey, string name, string description, Boolean itemStack)
 		{
+			// TODO: Apply Multiplier to all recipes
+			var multi = this._settings.GetInteger("CraftedAmountMulitplier", 1);
 			return new[]
 			{
 				new CraftData
@@ -247,6 +318,7 @@ namespace CreativeSurvivalEvolved
 					Key = key,
 					CraftedKey = craftedKey,
 					CraftedName = name,
+					CraftedAmount = itemStack ? multi : 1,
 					Costs = new List<CraftCost>(),
 					Description = description,
 					Category = "decoration",
@@ -256,6 +328,7 @@ namespace CreativeSurvivalEvolved
 					Key = key,
 					CraftedKey = craftedKey,
 					CraftedName = name,
+					CraftedAmount = itemStack ? multi : 1,
 					Costs = new List<CraftCost>(),
 					Description = description,
 					CanCraftAnywhere = true,
@@ -264,35 +337,58 @@ namespace CreativeSurvivalEvolved
 			};
 		}
 
+		// TODO: Change to Start / Awake
 		public override ModRegistrationData Register()
 		{
+			WorldScript.instance.gameObject.AddComponent<KuroThing.Console>();
 			this._registered = true;
 
 			var location = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "CreativeSurvivalEvolved.ini");
 			if (!File.Exists(location))
-			{
-				using (var fs = File.OpenWrite(location))
-				using (var stream = new StreamWriter(fs))
-				{
-					stream.WriteLine("[CreativeSurvivalEvolved]");
-
-					foreach (var key in CraftData.mRecipesForSet.Keys)
-					{
-						stream.WriteLine($"{key}=true # Free recipes for {key}?");
-					}
-				}
-			}
+				this.CreateIni(location);
 
 			this._settings = new Ini(location);
-			if (!this._settings.ContainsSection("CreativeSurvivalEvolved"))
-				throw new IniException("Invalid CreativeSurvivalEvolved.ini");
+			if (!this._settings.ContainsSection("Recipes"))
+			{
+				this._settings = null;
+				Debug.LogError("Invalid CreativeSurvivalEvolved.ini file. Recreating new File.");
+				File.Move(location, Path.ChangeExtension(location, ".ini.old"));
 
-			this._settings.SetSection("CreativeSurvivalEvolved");
+				this.CreateIni(location);
+				this._settings = new Ini(location);
+			}
+
+//			this._settings.SetSection("CreativeSurvivalEvolved");
 
 			this._recipes = new List<String>();
 			this._newRecipes = new List<CraftData>();
 
 			return base.Register();
+		}
+
+		private void CreateIni(string path)
+		{
+			using (var fs = File.OpenWrite(path))
+			using (var stream = new StreamWriter(fs))
+			{
+				stream.WriteLine("[Recipes]");
+				foreach (var key in CraftData.mRecipesForSet.Keys)
+				{
+					stream.WriteLine($"{key}=true # Free recipes for {key}?");
+				}
+				stream.WriteLine();
+
+				stream.WriteLine("CraftedAmountMulitplier=1 # This will be applied to the amount of items you get from crafting." +
+				                 " A multiplier of 100 on Basic Conveyors will give you 500 Basic Conveyors.");
+
+				stream.WriteLine();
+
+				stream.WriteLine("[Stats]");
+				stream.WriteLine("Health=true # Infinite Health (Can still instantly die)");
+				stream.WriteLine("State=true # Ensures the player state is \"Playing\" (Maybe useless)");
+				stream.WriteLine("Power=true # Infinite Powa!");
+				stream.WriteLine("Temperature=true # A solid 20c all the time");
+			}
 		}
 
 	}
