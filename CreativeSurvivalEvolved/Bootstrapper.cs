@@ -162,6 +162,10 @@ namespace CreativeSurvivalEvolved
 					this._newRecipes.AddRange(this.CreateRecipe(terrain));
 				TerrainData.mEntriesByKey[terrain.Key].MaxStack = 100;
 				terrain.MaxStack = 100;
+
+				if (terrain.Hardness >= 500)
+					terrain.Hardness = 499;
+
 				terrains++;
 			}
 
